@@ -6,6 +6,7 @@
   "required": [
     "base",
     "exit_code",
+    "fail_on",
     "files_indexed",
     "files_scanned",
     "files_skipped",
@@ -24,6 +25,10 @@
     "exit_code": {
       "type": "integer",
       "enum": [0, 1, 2, 3]
+    },
+    "fail_on": {
+      "type": "string",
+      "enum": ["info", "warn", "high"]
     },
     "files_indexed": {
       "type": "integer",

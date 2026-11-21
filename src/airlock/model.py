@@ -441,3 +441,4 @@ class ScanReport:
     findings: tuple[Finding, ...]
     suppressed: tuple[Finding, ...] = ()
     exit_code: int = EXIT_PASS
+    fail_on: Severity = Severity.HIGH

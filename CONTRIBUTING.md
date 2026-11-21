@@ -16,6 +16,9 @@ same bar. The design lives in [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTU
    with a UTC date, refresh the progress table and the `Last updated` line. A change is not
    finished until the roadmap is current.
 6. Update any document the change touches. If the code contradicts a doc, fix the doc.
+   README test counts are generated: do not edit the numbers by hand. `python
+   scripts/sync_readme.py` rewrites the metrics table, the marked prose span and
+   `site/data/badge-tests.json`, and `--check` fails when any of them disagree.
 7. If you changed a rule, run `python scripts/build_site.py` and commit the regenerated
    `site/` files. CI fails a stale page, because the published rule reference is generated from
    the rule data rather than written by hand.

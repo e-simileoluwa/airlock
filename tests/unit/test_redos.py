@@ -16,6 +16,15 @@ Budgets are multiples of what the shipped patterns measure here: the worst cap-l
 about 10 ms for the rule data and about 20 ms for `config_role`'s dangerous-command test against a
 line of repeated `[a-z]`, so the per-line bound below is roughly three times the slowest real cost
 while still being thousands of times smaller than what a backtracking pattern needs.
+
+That bound came from one machine and one run each, which is a portability bug in a test: on a
+loaded runner the same correct pattern costs two or three times as much and the failure looks like
+a ReDoS regression. `tests/unit/test_redos_calibration.py` measures this machine's floor, the cost
+of a cheap literal over the same cap-length lines, and
+`test_a_cap_length_line_stays_inside_the_budget` asserts two separate bounds against it. The
+absolute cap stays, so nothing is ever allowed less than it has always been allowed, and a
+calibrated ceiling of `max(cap, 750 x baseline)` rides with the machine that measures it. Each
+assertion names which of the two fired and quotes the baseline.
 """
 
 from __future__ import annotations
@@ -28,6 +37,7 @@ from pathlib import Path
 from queue import Empty
 
 import pytest
+from test_redos_calibration import BASELINE_MULTIPLE, calibrated_ceiling_ms, measure_baseline_ms
 
 from airlock import fingerprint, runner
 from airlock.detectors import DETECTOR_NAMES, ci_surface, config_role, stellar_seed
@@ -194,7 +204,18 @@ def test_a_cap_length_line_stays_inside_the_budget(
     name: str, pattern: re.Pattern[str], bait: tuple[str, ...]
 ) -> None:
     slowest = worst_line_ms(pattern, bait)
-    assert slowest < PER_LINE_BUDGET_MS, f"{name} took {slowest:.1f} ms on one line"
+    baseline = measure_baseline_ms()
+    ceiling = calibrated_ceiling_ms(baseline)
+    measured = f"{name} took {slowest:.1f} ms on one line (baseline {baseline:.4f} ms)"
+    assert slowest < PER_LINE_BUDGET_MS, (
+        f"{measured}, which breaches the absolute cap of {PER_LINE_BUDGET_MS:.1f} ms that has "
+        f"always applied; the calibrated ceiling is {ceiling:.1f} ms"
+    )
+    assert slowest < ceiling, (
+        f"{measured}, which breaches the calibrated ceiling of {ceiling:.1f} ms "
+        f"({BASELINE_MULTIPLE:g} x baseline) but not the absolute cap of "
+        f"{PER_LINE_BUDGET_MS:.1f} ms"
+    )
 
 
 def test_the_budget_catches_a_pattern_that_backtracks() -> None:

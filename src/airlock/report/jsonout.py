@@ -45,6 +45,7 @@ def to_dict(report: ScanReport) -> dict[str, object]:
         "files_scanned": report.files_scanned,
         "files_skipped": dict(sorted(report.files_skipped.items())),
         "exit_code": report.exit_code,
+        "fail_on": report.fail_on.label,
         "findings": [finding_to_dict(finding) for finding in report.findings],
         "suppressed": [finding_to_dict(finding) for finding in report.suppressed],
     }

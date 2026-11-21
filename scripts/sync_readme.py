@@ -26,6 +26,10 @@ DATA_DIR = REPO_ROOT / "site" / "data"
 
 METRICS_START = "<!-- METRICS:START -->"
 METRICS_END = "<!-- METRICS:END -->"
+#: The prose count is generated too, so the sentence a reader quotes cannot drift from the
+#: table beside it. The markers are HTML comments in a Markdown table cell and stay invisible.
+PROSE_START = "<!-- TESTS:COUNT -->"
+PROSE_END = "<!-- /TESTS:COUNT -->"
 
 
 def count_rules() -> int:
@@ -117,6 +121,22 @@ def build_badge_json(label: str, message: str, color: str) -> dict[str, object]:
     }
 
 
+def sync_prose(content: str, test_count: int) -> tuple[str, str | None]:
+    """Rewrite the marked prose span, returning the text and why it was stale if it was."""
+    expected = f"{test_count} tests in CI"
+    if PROSE_START not in content or PROSE_END not in content:
+        return content, None
+    before, rest = content.split(PROSE_START, 1)
+    current, after = rest.split(PROSE_END, 1)
+    updated = f"{before}{PROSE_START}{expected}{PROSE_END}{after}"
+    if current.strip() == expected:
+        return updated, None
+    return (
+        updated,
+        f"README.md: prose test count is {current.strip()!r}, expected {expected!r}",
+    )
+
+
 def sync(*, check: bool = False) -> bool:
     test_count = count_tests()
     rule_count = count_rules()
@@ -132,6 +152,7 @@ def sync(*, check: bool = False) -> bool:
     }
 
     stale = False
+    stale_reasons: list[str] = []
 
     # Check/write badge JSONs
     for path, data in badges.items():
@@ -140,10 +161,12 @@ def sync(*, check: bool = False) -> bool:
             current = path.read_text(encoding="utf-8")
             if current != rendered:
                 stale = True
+                stale_reasons.append(f"{path.name}: badge message is stale")
                 if not check:
                     path.write_text(rendered, encoding="utf-8")
         else:
             stale = True
+            stale_reasons.append(f"{path.name}: badge file is missing")
             if not check:
                 path.write_text(rendered, encoding="utf-8")
 
@@ -153,14 +176,17 @@ def sync(*, check: bool = False) -> bool:
         updated = content
         if METRICS_START in updated and METRICS_END in updated:
             before, rest = updated.split(METRICS_START, 1)
-            _, after = rest.split(METRICS_END, 1)
+            current, after = rest.split(METRICS_END, 1)
             new_table = generate_metrics_table(test_count, rule_count, family_count)
+            if current != new_table[len(METRICS_START) : -len(METRICS_END)]:
+                stale_reasons.append(
+                    f"README.md: metrics table is stale (expected {test_count} tests)"
+                )
             updated = f"{before}{new_table}{after}"
 
-        # Sync prose test count: "; <N> tests in CI"
-        prose_pattern = r";\s*\d+\s+tests in CI"
-        if re.search(prose_pattern, updated):
-            updated = re.sub(prose_pattern, f"; {test_count} tests in CI", updated)
+        updated, prose_reason = sync_prose(updated, test_count)
+        if prose_reason is not None:
+            stale_reasons.append(prose_reason)
 
         if updated != content:
             stale = True
@@ -168,6 +194,8 @@ def sync(*, check: bool = False) -> bool:
                 README_PATH.write_text(updated, encoding="utf-8")
 
     if check and stale:
+        for reason in stale_reasons:
+            print(f"sync_readme: {reason}", file=sys.stderr)
         print(
             "sync_readme: README metrics or badge data are stale. "
             "Run: python3 scripts/sync_readme.py",

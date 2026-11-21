@@ -191,6 +191,20 @@ def _mode_for(args: argparse.Namespace) -> Mode:
     return Mode.FULL
 
 
+def _reject_unusable_flags(mode: Mode, *, base: str | None, before: str | None) -> None:
+    """Refuse a comparison flag the resolved trust model will never read.
+
+    Policy resolution consults `base` only in pr mode and `before` only in push mode, so passing
+    either elsewhere scans something other than what the operator named and says nothing about
+    the difference. Both flags are statements about what to compare, which makes a silent discard
+    the same class of contradiction `_mode_for` already refuses.
+    """
+    if base is not None and mode is not Mode.PR:
+        raise UsageError(f"--base is only read in pr mode, not {mode.value}")
+    if before is not None and mode is not Mode.PUSH:
+        raise UsageError(f"--before is only read in push mode, not {mode.value}")
+
+
 def _file_counts(entries: tuple[FileEntry, ...], skipped: Mapping[str, int]) -> tuple[int, int]:
     """Indexed and read counts, refusing a report that loses an entry (`ARCHITECTURE.md` 7.8).
 
@@ -234,6 +248,7 @@ def run_scan(
     Raises `ValueError` for anything the operator must fix: a repository git will not open, an
     unresolvable base, unreadable rule data, a policy that does not parse.
     """
+    _reject_unusable_flags(mode, base=base, before=before)
     head = check_runtime(repo)
     trusted = resolve_policy(
         repo, mode, head, base=base, before=before, policy_path=config, manifest_path=manifest
@@ -280,6 +295,7 @@ def run_scan(
         exit_code=(
             EXIT_FINDINGS if any(item.severity >= threshold for item in findings) else EXIT_PASS
         ),
+        fail_on=threshold,
     )
 
 

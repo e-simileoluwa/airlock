@@ -44,6 +44,19 @@ dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "coverage>=7"]
 testpaths = ["tests"]
 # `src` is the package under test; `.` lets the suite import its own fixture builders.
 pythonpath = ["src", "."]
+# A marker typed with the wrong name only warns: pytest registers it at run time, prints nothing a
+# reader acts on, and runs the test anyway, so `-m slow_tst` quietly selects nothing. Strict markers
+# make that a collection error instead. (issue #91)
+addopts = ["--strict-markers"]
+# The suite is warning-free on the interpreters CI runs, so a new one is a failure to fix rather than
+# a line to scroll past. That matters most for `DeprecationWarning`: the package declares 3.11 to
+# 3.13 in one sentence and the matrix only proves the removal once it has happened.
+# Every entry after `error` is an exemption, and an exemption is an `ignore:` pattern on its own line
+# with a comment above it naming the module and why the call site cannot be fixed here.
+# `tests/unit/test_pytest_config.py` enforces that shape. (issue #91)
+filterwarnings = [
+    "error",
+]
 markers = [
   "perf: file-count scale measurement, gated on AIRLOCK_PERF=1 (issue #88).",
 ]
